@@ -157,6 +157,60 @@ public:
         }
     }
 
+    bool setFilter(uint32_t can_id, uint32_t can_mask = 0x7FF) {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
+
+        struct can_filter filter;
+        filter.can_id = can_id;
+        filter.can_mask = can_mask;
+
+        if (setsockopt(socket_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+            std::cerr << "Error setting CAN filter" << std::endl;
+            return false;
+        }
+
+        std::cout << "CAN filter set - ID: 0x" << std::hex << can_id 
+                  << ", Mask: 0x" << can_mask << std::dec << std::endl;
+        return true;
+    }
+
+    bool setFilters(const struct can_filter* filters, size_t num_filters) {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
+
+        if (setsockopt(socket_fd, SOL_CAN_RAW, CAN_RAW_FILTER, filters, num_filters * sizeof(struct can_filter)) < 0) {
+            std::cerr << "Error setting CAN filters" << std::endl;
+            return false;
+        }
+
+        std::cout << "Set " << num_filters << " filter(s)" << std::endl;
+        return true;
+    }
+
+    bool clearFilters() {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
+
+        struct can_filter filter;
+        filter.can_id = 0x0;
+        filter.can_mask = 0x0;
+
+        if (setsockopt(socket_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+            std::cerr << "Error clearing CAN filters" << std::endl;
+            return false;
+        }
+
+        std::cout << "Cleared all CAN filters" << std::endl;
+        return true;
+    }
+
     bool isInitialized() const {
         return is_initialized;
     }
@@ -168,26 +222,27 @@ public:
 
 int main() {
     CANInterface can;
+    can.init("can0");
 
-    if (!can.init("can0")) {
-        return -1;
-    }
+    // Accept IDs 0x123 and 0x456
+    struct can_filter filters[2];
+    filters[0].can_id = 0x123;
+    filters[0].can_mask = 0x7FF;
+    filters[1].can_id = 0x456;
+    filters[1].can_mask = 0x7FF;
 
-    uint8_t data[64]; 
-    for (int i = 0; i < 64; ++i) {
-        data[i] = i;
-    }
+    can.setFilters(filters, 2);
 
-    //can.send(0x123, data, 64);
+    can.clearFilters();
 
-    struct canfd_frame rx_frame;
-    if (can.receive(rx_frame, 5000)) {
-        // Process received frame (already printed in receive function)
-        std::cout << "Data received: ";
-        for (int i = 0; i < rx_frame.len; ++i) {
-            printf("%02X ", rx_frame.data[i]);
-        }
-        std::cout << std::endl;
+    uint8_t data[] = {1, 2, 3, 4};
+    can.send(0x123, data, 4);  // Will receive
+    can.send(0x456, data, 4);  // Will receive
+    can.send(0x789, data, 4);  // Will NOT receive
+
+    struct canfd_frame frame;
+    while (can.receive(frame, 5000)) {
+        std::cout << "Got frame with ID: 0x" << std::hex << frame.can_id << std::endl;
     }
 
     return 0;
