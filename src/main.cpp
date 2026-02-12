@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstring>
+#include <cstdint>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -7,99 +8,187 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
-static int sock;
+class CANInterface {
+private:
+    int socket_fd;
+    bool is_initialized;
+    std::string interface_name;
 
-int init() {
-
-}
-
-int main() {
-    int s;
-    struct sockaddr_can addr;
-    struct ifreq ifr;
-    struct canfd_frame tx_frame;
-
-    // Create socket
-    s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-    if (s < 0) {
-        std::cerr << "Error creating socket" << std::endl;
-        return 1;
-    }
-
-    // Enable CAN FD support
-    int enable_canfd = 1;
-    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &enable_canfd, sizeof(enable_canfd)) < 0) {
-        std::cerr << "Error enabling CAN FD support" << std::endl;
-        return 1;
-    }
-
+public:
+    CANInterface() : socket_fd(-1), is_initialized(false) {}
     
-
-    // Also enable receiving own frames
-    int recv_own_msgs = 1;
-    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, &recv_own_msgs, sizeof(recv_own_msgs)) < 0) {
-        std::cerr << "Error enabling receive own messages" << std::endl;
-        return 1;
-    }
-
-    // Specify CAN interface (e.g., "can0")
-    std::strcpy(ifr.ifr_name, "can0");
-    if(ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
-        std::cerr << "Error getting interface index" << std::endl;
-        return 1;
-    }
-
-    // Bind socket to CAN interface
-    addr.can_family = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
-    
-    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        std::cerr << "Error binding socket" << std::endl;
-        return 1;
-    }
-
-    std::cout << "CAN FD initialized successfully" << std::endl;
-
-    memset(&tx_frame, 0, sizeof(tx_frame));
-    tx_frame.can_id = 0x123; // Example CAN ID
-    tx_frame.len = 16;
-    tx_frame.flags = CANFD_BRS; // Enable Bit Rate Switching for CAN FD
-
-    for (int i = 0; i < tx_frame.len; i++) {
-        tx_frame.data[i] = i; // Fill data with example values
-    }
-
-    if (write(s, &tx_frame, sizeof(tx_frame)) != sizeof(tx_frame)) {
-        std::cerr << "Error sending CAN frame" << std::endl;
-        return 1;
-    } else {
-        std::cout << "Sent CAN FD frame with " << (int)tx_frame.len << " bytes of data" << std::endl;
-        for (int i = 0; i < tx_frame.len; i++) {
-            std::cout << "Data[" << i << "] = " << (int)tx_frame.data[i] << std::endl;
+    ~CANInterface() {
+        if (is_initialized) {
+            close(socket_fd);
+            std::cout << "Socket closed" << std::endl;
         }
     }
 
-    std::cout << "Waiting to receive CAN frame..." << std::endl;
+    bool init(const std::string& ifname = "can0") {
+        interface_name = ifname;
+        
+        socket_fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+        if (socket_fd < 0) {
+            std::cerr << "Error creating socket" << std::endl;
+            return false;
+        }
 
-    struct canfd_frame rx_frame;
+        int enable_canfd = 1;
+        if (setsockopt(socket_fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, 
+                       &enable_canfd, sizeof(enable_canfd)) < 0) {
+            std::cerr << "Error enabling CAN FD support" << std::endl;
+            close(socket_fd);
+            return false;
+        }
 
-    ssize_t nbytes = read(s, &rx_frame, CANFD_MTU);
+        // Enable loopback (receive own frames)
+        // TODO: Remove when vcan testing is done, as this is not needed for real CAN interfaces
+        int recv_own_msgs = 1;
+        if (setsockopt(socket_fd, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, 
+                       &recv_own_msgs, sizeof(recv_own_msgs)) < 0) {
+            std::cerr << "Error enabling receive own messages" << std::endl;
+            close(socket_fd);
+            return false;
+        }
 
+        struct ifreq ifr;
+        std::strcpy(ifr.ifr_name, interface_name.c_str());
+        if (ioctl(socket_fd, SIOCGIFINDEX, &ifr) < 0) {
+            std::cerr << "Error getting interface index" << std::endl;
+            close(socket_fd);
+            return false;
+        }
 
-    if (nbytes == CANFD_MTU) {
-        printf("got CAN FD frame with length %d\n", rx_frame.len);
-        /* rx_frame.flags contains valid data */
-    } else if (nbytes == CAN_MTU) {
-        printf("got Classical CAN frame with length %d\n", rx_frame.len);
-        /* rx_frame.flags is undefined */
-    } else {
-        fprintf(stderr, "read: invalid CAN(FD) frame\n");
-        return 1;
+        struct sockaddr_can addr;
+        addr.can_family = AF_CAN;
+        addr.can_ifindex = ifr.ifr_ifindex;
+        
+        if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            std::cerr << "Error binding socket" << std::endl;
+            close(socket_fd);
+            return false;
+        }
+
+        is_initialized = true;
+        std::cout << "CAN FD interface '" << interface_name 
+                  << "' initialized successfully" << std::endl;
+        return true;
     }
 
+    bool send(uint32_t can_id, const uint8_t* data, uint8_t len, bool use_brs = true) {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
 
+        if (len > 64) {
+            std::cerr << "Data length too large (max 64 bytes)" << std::endl;
+            return false;
+        }
 
+        struct canfd_frame frame;
+        memset(&frame, 0, sizeof(frame));
+        
+        frame.can_id = can_id;
+        frame.len = len;
+        frame.flags = use_brs ? CANFD_BRS : 0;
+        
+        if (data != nullptr && len > 0) {
+            memcpy(frame.data, data, len);
+        }
 
-    close(s);
+        if (write(socket_fd, &frame, sizeof(frame)) != sizeof(frame)) {
+            std::cerr << "Error sending CAN frame" << std::endl;
+            return false;
+        }
+
+        std::cout << "Sent CAN FD frame - ID: 0x" << std::hex << can_id 
+                  << ", Length: " << std::dec << (int)len << " bytes" << std::endl;
+        return true;
+    }
+
+    // Blocking receive
+    bool receive(struct canfd_frame& frame) {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
+
+        ssize_t nbytes = read(socket_fd, &frame, sizeof(frame));
+        
+        if (nbytes == CANFD_MTU) {
+            std::cout << "Received CAN FD frame - ID: 0x" << std::hex << frame.can_id 
+                      << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;
+            return true;
+        } else {
+            std::cerr << "Error: Invalid CAN frame received" << std::endl;
+            return false;
+        }
+    }
+
+    // Receive with timeout
+    bool receive(struct canfd_frame& frame, int timeout_ms) {
+        if (!is_initialized) {
+            std::cerr << "Interface not initialized" << std::endl;
+            return false;
+        }
+
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+            std::cerr << "Error setting socket timeout" << std::endl;
+            return false;
+        }
+
+        ssize_t nbytes = read(socket_fd, &frame, sizeof(frame));
+        
+        if (nbytes == CANFD_MTU) {
+            std::cout << "Received frame - ID: 0x" << std::hex << frame.can_id 
+                      << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;
+            return true;
+        } else if (nbytes < 0) {
+            // Timeout or error
+            return false;
+        } else {
+            std::cerr << "Error: Invalid CAN frame received" << std::endl;
+            return false;
+        }
+    }
+
+    bool isInitialized() const {
+        return is_initialized;
+    }
+
+    std::string getInterfaceName() const {
+        return interface_name;
+    }
+};
+
+int main() {
+    CANInterface can;
+
+    if (!can.init("can0")) {
+        return -1;
+    }
+
+    uint8_t data[64]; 
+    for (int i = 0; i < 64; ++i) {
+        data[i] = i;
+    }
+
+    //can.send(0x123, data, 64);
+
+    struct canfd_frame rx_frame;
+    if (can.receive(rx_frame, 5000)) {
+        // Process received frame (already printed in receive function)
+        std::cout << "Data received: ";
+        for (int i = 0; i < rx_frame.len; ++i) {
+            printf("%02X ", rx_frame.data[i]);
+        }
+        std::cout << std::endl;
+    }
+
     return 0;
 }
