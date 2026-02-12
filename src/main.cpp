@@ -7,6 +7,12 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
+static int sock;
+
+int init() {
+
+}
+
 int main() {
     int s;
     struct sockaddr_can addr;
@@ -27,12 +33,7 @@ int main() {
         return 1;
     }
 
-    // Enable loopback (receive own frames)
-    int loopback = 1;
-    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_LOOPBACK, &loopback, sizeof(loopback)) < 0) {
-        std::cerr << "Error enabling loopback" << std::endl;
-        return 1;
-    }
+    
 
     // Also enable receiving own frames
     int recv_own_msgs = 1;
