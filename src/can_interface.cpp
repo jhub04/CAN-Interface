@@ -12,7 +12,6 @@ can_interface::can_interface() : socket_fd_(-1), is_initialized_(false) {}
 can_interface::~can_interface() {
     if (is_initialized_) {
         close(socket_fd_);
-        std::cout << "Socket closed" << std::endl;
     }
 }
 
@@ -57,8 +56,7 @@ can_status can_interface::init(const std::string& ifname) {
     }
 
     is_initialized_ = true;
-    std::cout << "CAN FD interface '" << interface_name_ 
-              << "' initialized successfully" << std::endl;
+    
     return can_status::OK;
 }
 
@@ -86,8 +84,6 @@ can_status can_interface::send(uint32_t can_id, const uint8_t* data, uint8_t len
         return can_status::ERR_SEND;
     }
 
-    /*std::cout << "Sent CAN FD frame - ID: 0x" << std::hex << can_id 
-              << ", Length: " << std::dec << (int)len << " bytes" << std::endl;*/
     return can_status::OK;
 }
 
