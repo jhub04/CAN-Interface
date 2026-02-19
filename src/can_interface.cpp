@@ -147,7 +147,7 @@ bool can_interface::receive(struct canfd_frame& frame, int timeout_ms) {
     }
 }
 
-bool can_interface::receive_async(std::function<void(const struct canfd_frame&, bool)> callback) {
+bool can_interface::start_async_receive(std::function<void(const struct canfd_frame&, bool)> callback) {
     if (!is_initialized_) {
         std::cerr << "interface not initialized" << std::endl;
         return false;
