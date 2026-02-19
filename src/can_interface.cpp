@@ -7,16 +7,16 @@
 #include <net/if.h>
 #include <linux/can/raw.h>
 
-CanInterface::CanInterface() : socket_fd_(-1), is_initialized_(false) {}
+can_interface::can_interface() : socket_fd_(-1), is_initialized_(false) {}
 
-CanInterface::~CanInterface() {
+can_interface::~can_interface() {
     if (is_initialized_) {
         close(socket_fd_);
         std::cout << "Socket closed" << std::endl;
     }
 }
 
-bool CanInterface::init(const std::string& ifname) {
+bool can_interface::init(const std::string& ifname) {
     interface_name_ = ifname;
     
     socket_fd_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -67,7 +67,7 @@ bool CanInterface::init(const std::string& ifname) {
     return true;
 }
 
-bool CanInterface::send(uint32_t can_id, const uint8_t* data, uint8_t len, bool use_brs) {
+bool can_interface::send(uint32_t can_id, const uint8_t* data, uint8_t len, bool use_brs) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -99,7 +99,7 @@ bool CanInterface::send(uint32_t can_id, const uint8_t* data, uint8_t len, bool 
     return true;
 }
 
-bool CanInterface::receive(struct canfd_frame& frame) {
+bool can_interface::receive(struct canfd_frame& frame) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -117,7 +117,7 @@ bool CanInterface::receive(struct canfd_frame& frame) {
     }
 }
 
-bool CanInterface::receive(struct canfd_frame& frame, int timeout_ms) {
+bool can_interface::receive(struct canfd_frame& frame, int timeout_ms) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -147,7 +147,7 @@ bool CanInterface::receive(struct canfd_frame& frame, int timeout_ms) {
     }
 }
 
-bool CanInterface::receive_async(std::function<void(const struct canfd_frame&, bool)> callback) {
+bool can_interface::receive_async(std::function<void(const struct canfd_frame&, bool)> callback) {
     if (!is_initialized_) {
         std::cerr << "interface not initialized" << std::endl;
         return false;
@@ -166,7 +166,7 @@ bool CanInterface::receive_async(std::function<void(const struct canfd_frame&, b
     return true;
 }
 
-void CanInterface::stop_async_receive() {
+void can_interface::stop_async_receive() {
     receiving_ = false;
     if (receive_thread_.joinable()) {
         receive_thread_.join();
@@ -174,7 +174,7 @@ void CanInterface::stop_async_receive() {
     }
 }
 
-bool CanInterface::set_filter(uint32_t can_id, uint32_t can_mask) {
+bool can_interface::set_filter(uint32_t can_id, uint32_t can_mask) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -194,7 +194,7 @@ bool CanInterface::set_filter(uint32_t can_id, uint32_t can_mask) {
     return true;
 }
 
-bool CanInterface::set_filters(const struct can_filter* filters, size_t num_filters) {
+bool can_interface::set_filters(const struct can_filter* filters, size_t num_filters) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -209,7 +209,7 @@ bool CanInterface::set_filters(const struct can_filter* filters, size_t num_filt
     return true;
 }
 
-bool CanInterface::clear_filters() {
+bool can_interface::clear_filters() {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
         return false;
@@ -228,10 +228,10 @@ bool CanInterface::clear_filters() {
     return true;
 }
 
-bool CanInterface::is_initialized() const {
+bool can_interface::is_initialized() const {
     return is_initialized_;
 }
 
-std::string CanInterface::get_interface_name() const {
+std::string can_interface::get_interface_name() const {
     return interface_name_;
 }

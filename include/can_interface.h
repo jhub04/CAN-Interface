@@ -8,7 +8,7 @@
 #include <thread>
 #include <atomic>
 
-class CanInterface {
+class can_interface {
 private:
     int socket_fd_;
     bool is_initialized_;
@@ -18,8 +18,8 @@ private:
     std::atomic<bool> receiving_ = false;
 
 public:
-    CanInterface();
-    ~CanInterface();
+    can_interface();
+    ~can_interface();
 
     bool init(const std::string& ifname = "can0");
     bool send(uint32_t can_id, const uint8_t* data, uint8_t len, bool use_brs = true);

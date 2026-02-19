@@ -5,7 +5,7 @@
 #include <atomic>
 
 int main() {
-    CanInterface can;
+    can_interface can;
     can.init("vcan0");
     can.clear_filters();
 
