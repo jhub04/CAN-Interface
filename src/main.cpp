@@ -1,37 +1,37 @@
 #include "../include/can_interface.h"
 #include <iostream>
+#include <thread>
+#include <chrono>
+#include <atomic>
 
 int main() {
     CanInterface can;
-    can.init("can0");
-
-    // Accept IDs 0x123 and 0x456
-    struct can_filter filters[2];
-    filters[0].can_id = 0x123;
-    filters[0].can_mask = 0x7FF;
-    filters[1].can_id = 0x456;
-    filters[1].can_mask = 0x7FF;
-
-    can.set_filters(filters, 2);
-
+    can.init("vcan0");
     can.clear_filters();
 
-    uint8_t data[] = {1, 2, 3, 4};
-    can.send(0x123, data, 4);  // Will receive
-    can.send(0x456, data, 4);  // Will receive
-    can.send(0x789, data, 4);  // Will NOT receive
+    std::atomic<int> frames_received(0);
 
-    struct canfd_frame frame;
-    /*
-    while (can.receive(frame, 5000)) {
-        std::cout << "Got frame with ID: 0x" << std::hex << frame.can_id << std::endl;
-    }
-    */
-    can.receive_async([](const struct canfd_frame& frame, bool success) {
+    std::cout << "[main] Starting async receive..." << std::endl;
+
+    can.receive_async([&frames_received](const struct canfd_frame& frame, bool success) {
         if (success) {
-            std::cout << "Async received frame ID: 0x" << std::hex << frame.can_id << std::endl;
+            frames_received++;
+            std::cout << "[async thread] Received frame ID: 0x" << std::hex << frame.can_id
+                      << " | frames so far: " << std::dec << frames_received.load() << std::endl;
         }
     });
+
+    // Send frames from the main thread with delays, proving main thread is NOT blocked
+    for (int i = 0; i < 5; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        uint8_t data[] = {(uint8_t)i, 0xAB, 0xCD, 0xEF};
+        std::cout << "[main] Sending frame " << i << "..." << std::endl;
+        can.send(0x123, data, 4);
+    }
+
+    can.stop_async_receive();
+
+    std::cout << "[main] Done. Total frames received: " << frames_received.load() << std::endl;
 
     return 0;
 }
