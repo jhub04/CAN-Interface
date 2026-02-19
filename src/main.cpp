@@ -6,15 +6,18 @@
 
 int main() {
     can_interface can;
-    can.init("vcan0");
-    can.clear_filters();
+    auto status = can.init("vcan0");
+    if (status != can_status::OK) {
+        std::cerr << "[main] Failed to initialize CAN interface: " << static_cast<int>(status) << std::endl;
+        return 1;
+    }
 
     std::atomic<int> frames_received(0);
 
     std::cout << "[main] Starting async receive..." << std::endl;
 
-    can.start_async_receive([&frames_received](const struct canfd_frame& frame, bool success) {
-        if (success) {
+    can.start_async_receive([&frames_received](const struct canfd_frame& frame, can_status status) {
+        if (status == can_status::OK) {
             frames_received++;
             std::cout << "[async thread] Received frame ID: 0x" << std::hex << frame.can_id
                       << " | frames so far: " << std::dec << frames_received.load() << std::endl;
