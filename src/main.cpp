@@ -22,9 +22,16 @@ int main() {
     can.send(0x789, data, 4);  // Will NOT receive
 
     struct canfd_frame frame;
+    /*
     while (can.receive(frame, 5000)) {
         std::cout << "Got frame with ID: 0x" << std::hex << frame.can_id << std::endl;
     }
+    */
+    can.receive_async([](const struct canfd_frame& frame, bool success) {
+        if (success) {
+            std::cout << "Async received frame ID: 0x" << std::hex << frame.can_id << std::endl;
+        }
+    });
 
     return 0;
 }

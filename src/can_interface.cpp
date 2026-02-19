@@ -147,6 +147,32 @@ bool CanInterface::receive(struct canfd_frame& frame, int timeout_ms) {
     }
 }
 
+bool CanInterface::receive_async(std::function<void(const struct canfd_frame&, bool)> callback) {
+    if (!is_initialized) {
+        std::cerr << "interface not initialized" << std::endl;
+        return false;
+    }
+
+    receiving_ = true;
+
+    receive_thread_ = std::thread([this, callback]() {
+        while (receiving_) {
+            struct canfd_frame frame;
+            bool success = receive(frame, 1000);
+            callback(frame, success);
+        }
+        std::cout << "Async receive thread stopped" << std::endl;
+    });
+}
+
+void CanInterface::stop_async_receive() {
+    receiving_ = false;
+    if (receive_thread_.joinable()) {
+        receive_thread_.join();
+        std::cout << "Receive thread joined successfully!" << std::endl;
+    }
+}
+
 bool CanInterface::set_filter(uint32_t can_id, uint32_t can_mask) {
     if (!is_initialized_) {
         std::cerr << "Interface not initialized" << std::endl;
