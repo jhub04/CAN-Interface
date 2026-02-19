@@ -94,8 +94,8 @@ bool CanInterface::send(uint32_t can_id, const uint8_t* data, uint8_t len, bool 
         return false;
     }
 
-    std::cout << "Sent CAN FD frame - ID: 0x" << std::hex << can_id 
-              << ", Length: " << std::dec << (int)len << " bytes" << std::endl;
+    /*std::cout << "Sent CAN FD frame - ID: 0x" << std::hex << can_id 
+              << ", Length: " << std::dec << (int)len << " bytes" << std::endl;*/
     return true;
 }
 
@@ -108,8 +108,8 @@ bool CanInterface::receive(struct canfd_frame& frame) {
     ssize_t nbytes = read(socket_fd_, &frame, sizeof(frame));
     
     if (nbytes == CANFD_MTU) {
-        std::cout << "Received CAN FD frame - ID: 0x" << std::hex << frame.can_id 
-                  << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;
+        /*std::cout << "Received CAN FD frame - ID: 0x" << std::hex << frame.can_id 
+                  << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;*/
         return true;
     } else {
         std::cerr << "Error: Invalid CAN frame received" << std::endl;
@@ -135,8 +135,8 @@ bool CanInterface::receive(struct canfd_frame& frame, int timeout_ms) {
     ssize_t nbytes = read(socket_fd_, &frame, sizeof(frame));
     
     if (nbytes == CANFD_MTU) {
-        std::cout << "Received frame - ID: 0x" << std::hex << frame.can_id 
-                  << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;
+        /*std::cout << "Received frame - ID: 0x" << std::hex << frame.can_id 
+                  << ", Length: " << std::dec << (int)frame.len << " bytes" << std::endl;*/
         return true;
     } else if (nbytes < 0) {
         // Timeout or error
@@ -148,7 +148,7 @@ bool CanInterface::receive(struct canfd_frame& frame, int timeout_ms) {
 }
 
 bool CanInterface::receive_async(std::function<void(const struct canfd_frame&, bool)> callback) {
-    if (!is_initialized) {
+    if (!is_initialized_) {
         std::cerr << "interface not initialized" << std::endl;
         return false;
     }
@@ -163,6 +163,7 @@ bool CanInterface::receive_async(std::function<void(const struct canfd_frame&, b
         }
         std::cout << "Async receive thread stopped" << std::endl;
     });
+    return true;
 }
 
 void CanInterface::stop_async_receive() {
