@@ -41,8 +41,8 @@ int main() {
     std::cout << "[main] Starting async receive..." << std::endl;
 
     // Asynchronous Recieve
-    can.start_async_receive([&frames_received](const struct canfd_frame& frame, bool success) {
-        if (success) {
+    can.start_async_receive([&frames_received](const struct canfd_frame& frame, can_status status) {
+        if (status == can_status::OK) {
             frames_received++;
             std::cout << "[async thread] Received frame ID: 0x" << std::hex << frame.can_id
                       << " | frames so far: " << std::dec << frames_received.load() << std::endl;
