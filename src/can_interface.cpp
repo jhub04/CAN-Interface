@@ -30,14 +30,13 @@ can_status can_interface::init(const std::string& ifname) {
         return can_status::ERR_CANFD_SUPPORT;
     }
 
-    // Enable loopback (receive own frames)
-    // TODO: Remove when vcan testing is done, as this is not needed for real CAN interfaces
-    int recv_own_msgs = 1;
-    if (setsockopt(socket_fd_, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, 
-                   &recv_own_msgs, sizeof(recv_own_msgs)) < 0) {
-        close(socket_fd_);
-        return can_status::ERR_LOOPBACK;        
-    }
+    // Enable loopback (receive own frames). Only use for vcan testing
+    //int recv_own_msgs = 1;
+    //if (setsockopt(socket_fd_, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, 
+    //               &recv_own_msgs, sizeof(recv_own_msgs)) < 0) {
+    //    close(socket_fd_);
+    //    return can_status::ERR_LOOPBACK;        
+    //}
 
     struct ifreq ifr;
     std::strcpy(ifr.ifr_name, interface_name_.c_str());
@@ -115,7 +114,7 @@ can_status can_interface::receive(struct canfd_frame& frame, int timeout_ms) {
     }
 
     ssize_t nbytes = read(socket_fd_, &frame, sizeof(frame));
-    
+
     if (nbytes != CANFD_MTU) {
         return can_status::ERR_RECEIVE;
     } 
