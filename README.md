@@ -71,7 +71,7 @@ int main() {
 A useful way to use the `start_async_receive` function is to to collect frames inside the callback and process them later on in the thread. Since the callback runs on a background thread, access to shared data must be protected with a mutex.
 
 ```cpp
-#include "can_interface.h"
+#include "../include/can_interface.h"
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -80,15 +80,15 @@ A useful way to use the `start_async_receive` function is to to collect frames i
 
 int main() {
     can_interface can;
-    can.init("vcan0");
+    can.init("can0");
     can.clear_filters();
 
-    std::vector collected_frames;
+    std::vector<struct canfd_frame> collected_frames;
     std::mutex frames_mutex;
 
     // Collect frames in the background
-    can.start_receive_async([&collected_frames, &frames_mutex](const struct canfd_frame& frame, bool success) {
-        if (success) {
+    can.start_async_receive([&collected_frames, &frames_mutex](const struct canfd_frame& frame, can_status status) {
+        if (status == can_status::OK) {
             std::lock_guard lock(frames_mutex);
             collected_frames.push_back(frame);
         }
@@ -102,7 +102,7 @@ int main() {
         can.send(0x123, data, 4);
     }
 
-    can.stop_receive();
+    can.stop_async_receive();
 
     // Process all collected frames
     std::lock_guard lock(frames_mutex);
